@@ -4,54 +4,70 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="data:,">
+<title>Cowboy Party 3D</title>
 
 <style>
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
   overflow: hidden;
+  background: #17251e;
   font-family: Arial, sans-serif;
-  background: #18221a;
 }
+
+canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  touch-action: none;
+  cursor: grab;
+}
+
 #menu {
-  position: absolute;
+  position: fixed;
   top: 12px;
   left: 12px;
   right: 12px;
-  z-index: 10;
-  background: rgba(55,35,20,.92);
   padding: 12px;
+  background: rgba(65,40,23,.94);
   border-radius: 12px;
   color: white;
+  z-index: 10;
 }
+
 h3 {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
 }
+
 button {
-  background: #bd8b51;
-  color: white;
-  border: none;
-  padding: 9px 12px;
+  border: 1px solid #d4ad78;
   border-radius: 6px;
+  padding: 8px 12px;
   margin: 3px;
-  cursor: pointer;
-}
-button:hover {
-  background: #966336;
-}
-#info {
-  position: absolute;
-  bottom: 15px;
-  left: 15px;
-  background: rgba(0,0,0,.7);
+  background: #a97642;
   color: white;
-  padding: 12px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+button:hover {
+  background: #c39158;
+}
+
+#info {
+  position: fixed;
+  bottom: 12px;
+  left: 12px;
+  background: rgba(0,0,0,.75);
+  color: white;
+  padding: 10px;
   border-radius: 8px;
   font-size: 12px;
   pointer-events: none;
-}
-canvas {
-  display: block;
-  touch-action: none;
 }
 </style>
 </head>
@@ -59,461 +75,563 @@ canvas {
 <body>
 
 <div id="menu">
-  <h3>🤠 Cowboy Party | 20 โต๊ะ</h3>
-  <button id="top">มุมด้านบน</button>
-  <button id="front">ด้านหน้า</button>
-  <button id="side">ด้านข้าง</button>
-  <button id="perspective">มุม 3D</button>
-  <button id="rotate">หมุนอัตโนมัติ</button>
-  <button id="night">กลางวัน / กลางคืน</button>
-  <button id="fullscreen">เต็มหน้าจอ</button>
+  <h3>COWBOY PARTY | 20 โต๊ะ</h3>
+  <button onclick="view(0,1.57)">ด้านบน</button>
+  <button onclick="view(0,.3)">ด้านหน้า</button>
+  <button onclick="view(1.57,.5)">ด้านข้าง</button>
+  <button onclick="view(-.4,.85)">มุม 3D</button>
+  <button onclick="zoom(1.15)">ซูม +</button>
+  <button onclick="zoom(.87)">ซูม -</button>
+  <button onclick="auto=!auto">หมุนอัตโนมัติ</button>
+  <button onclick="night=!night;draw()">กลางวัน / กลางคืน</button>
+  <button onclick="full()">เต็มหน้าจอ</button>
+  <button onclick="reset()">รีเซ็ต</button>
 </div>
+
+<canvas id="canvas"></canvas>
 
 <div id="info">
   โต๊ะจีน 20 โต๊ะ | 200 ที่นั่ง<br>
-  ลากเพื่อหมุน • สองนิ้วเพื่อซูม
+  ลากเพื่อหมุน / สองนิ้วเพื่อซูม
 </div>
 
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-  }
-}
-</script>
+<script>
 
-<script type="module">
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
 
-import * as THREE from 'three';
-import { OrbitControls } from
-'three/addons/controls/OrbitControls.js';
+let W,H,S;
+let yaw=-.4;
+let pitch=.85;
+let magnify=1;
+let night=false;
+let auto=false;
 
-// =============================
-// ระบบภาพ 3D
-// =============================
+let faces=[];
+let labels=[];
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x17251e);
+// =======================
+// ระบบฉายภาพสามมิติ
+// =======================
 
-const camera = new THREE.PerspectiveCamera(
-  45,
-  innerWidth / innerHeight,
-  0.1,
-  200
-);
+function project(x,y,z){
 
-camera.position.set(30, 32, 38);
+  let a=x*Math.cos(yaw)-z*Math.sin(yaw);
 
-const renderer = new THREE.WebGLRenderer({
-  antialias: true
-});
+  let b=x*Math.sin(yaw)+z*Math.cos(yaw);
 
-renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(
-  Math.min(devicePixelRatio, 2)
-);
-
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-document.body.appendChild(renderer.domElement);
-
-const controls = new OrbitControls(
-  camera,
-  renderer.domElement
-);
-
-controls.enableDamping = true;
-controls.dampingFactor = 0.07;
-controls.minDistance = 5;
-controls.maxDistance = 85;
-controls.maxPolarAngle = Math.PI / 2.05;
-controls.target.set(0, 0, 0);
-controls.autoRotateSpeed = 0.7;
-
-// =============================
-// แสงสว่าง
-// =============================
-
-const ambient = new THREE.HemisphereLight(
-  0xffe6c2, 0x354b29, 1.5
-);
-scene.add(ambient);
-
-const sun = new THREE.DirectionalLight(
-  0xffdfb0, 2.5
-);
-
-sun.position.set(-12, 25, 10);
-sun.castShadow = true;
-
-sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.left = -20;
-sun.shadow.camera.right = 20;
-sun.shadow.camera.top = 20;
-sun.shadow.camera.bottom = -20;
-
-scene.add(sun);
-
-// =============================
-// วัสดุ
-// =============================
-
-const mat = color =>
-  new THREE.MeshStandardMaterial({color});
-
-const grass = mat(0x526b36);
-const wood = mat(0x80502b);
-const darkWood = mat(0x50321d);
-const cream = mat(0xf4ead7);
-const gold = mat(0xb78143);
-const white = mat(0xffffff);
-const black = mat(0x202020);
-const sand = mat(0xd2b48c);
-
-const bulbMaterial =
-new THREE.MeshStandardMaterial({
-  color: 0xffdc8b,
-  emissive: 0xffb638,
-  emissiveIntensity: 2
-});
-
-// =============================
-// ฟังก์ชันสร้างวัตถุ
-// =============================
-
-function box(w,h,d,x,y,z,material) {
-  const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(w,h,d),
-    material
-  );
-
-  mesh.position.set(x,y,z);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  scene.add(mesh);
-  return mesh;
+  return [
+    W/2+a*S,
+    H*.55+(b*Math.sin(pitch)-y*Math.cos(pitch))*S,
+    b*Math.cos(pitch)+y*Math.sin(pitch)
+  ];
 }
 
-function cylinder(r,h,x,y,z,material) {
-  const mesh = new THREE.Mesh(
-    new THREE.CylinderGeometry(r,r,h,32),
-    material
-  );
+function face(points,color){
 
-  mesh.position.set(x,y,z);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  scene.add(mesh);
-  return mesh;
-}
+  const p=points.map(v=>project(...v));
 
-function sphere(r,x,y,z,material) {
-  const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(r,12,12),
-    material
-  );
-
-  mesh.position.set(x,y,z);
-  scene.add(mesh);
-  return mesh;
-}
-
-// =============================
-// ป้ายข้อความภาษาไทย
-// =============================
-
-function sign(text,x,y,z,width=3) {
-
-  const canvas = document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 256;
-
-  const ctx = canvas.getContext('2d');
-
-  ctx.fillStyle = '#684328';
-  ctx.fillRect(0,0,1024,256);
-
-  ctx.strokeStyle = '#d5ad70';
-  ctx.lineWidth = 12;
-  ctx.strokeRect(12,12,1000,232);
-
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 70px Arial';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text,512,128,960);
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-
-  const material = new THREE.SpriteMaterial({
-    map: texture,
-    depthTest: false
+  faces.push({
+    points:p,
+    color:color,
+    depth:p.reduce((sum,v)=>sum+v[2],0)/p.length
   });
-
-  const sprite = new THREE.Sprite(material);
-  sprite.position.set(x,y,z);
-  sprite.scale.set(width,width/4,1);
-  scene.add(sprite);
 }
 
-// =============================
-// พื้นที่จัดงาน 20 x 25 เมตร
-// =============================
+// =======================
+// สร้างกล่องสามมิติ
+// =======================
 
-box(20,.25,25,0,-.125,0,grass);
+function box(x,z,w,d,h,c,base=0){
 
-// ทางเดินหลัก
-box(2.3,.035,16,-1.7,.025,1,sand);
+  let a=[x-w/2,base,z-d/2];
+  let b=[x+w/2,base,z-d/2];
+  let e=[x+w/2,base,z+d/2];
+  let f=[x-w/2,base,z+d/2];
 
-// พื้นที่กิจกรรมหน้าเวที
-box(18,.04,2.5,0,.03,-7.1,sand);
+  let A=[a[0],base+h,a[2]];
+  let B=[b[0],base+h,b[2]];
+  let E=[e[0],base+h,e[2]];
+  let F=[f[0],base+h,f[2]];
 
-sign('พื้นที่กิจกรรมหน้าเวที',
-     0,.8,-7.1,5);
-
-// =============================
-// เวทีหลัก
-// =============================
-
-box(11,.6,3.8,0,.3,-10.3,wood);
-box(11,3.2,.25,0,2.2,-12,darkWood);
-
-// เสาเวที
-box(.2,4,.2,-5.3,2,-11,wood);
-box(.2,4,.2,5.3,2,-11,wood);
-box(11,.25,4,0,4,-10.3,wood);
-
-sign('เวทีหลัก',0,3.5,-10,5);
-sign('ดนตรีสด / พิธีกร / จับรางวัล',
-     0,2.4,-11.7,6);
-
-// ลำโพง
-box(.8,1.7,.7,-4.7,1.45,-9.5,black);
-box(.8,1.7,.7,4.7,1.45,-9.5,black);
-
-// กลองและอุปกรณ์ดนตรี
-cylinder(.45,.7,0,.95,-10.5,black);
-cylinder(.25,.4,-.65,1.05,-10.7,gold);
-cylinder(.25,.4,.65,1.05,-10.7,gold);
-
-for(let x=-4;x<=4;x+=2){
-  sphere(.13,x,3.8,-8.6,bulbMaterial);
+  face([a,b,B,A],c[1]);
+  face([b,e,E,B],c[2]);
+  face([e,f,F,E],c[1]);
+  face([f,a,A,F],c[2]);
+  face([A,B,E,F],c[0]);
 }
 
-// =============================
-// โต๊ะจีน 20 โต๊ะ
-// =============================
+// =======================
+// สร้างวัตถุทรงกลม
+// =======================
 
-function createTable(x,z,number){
+function cylinder(x,z,r,h,base,c){
 
-  const tableMaterial =
-    number <= 5 ? gold : cream;
+  let top=[];
 
-  // ขาโต๊ะ
-  cylinder(.12,.7,x,.35,z,darkWood);
+  for(let i=0;i<24;i++){
 
-  // หน้าโต๊ะ
-  cylinder(.78,.12,x,.76,z,tableMaterial);
+    let a=i*Math.PI/12;
+    let b=(i+1)*Math.PI/12;
 
-  // ผ้าคลุมโต๊ะ
-  cylinder(.76,.52,x,.45,z,tableMaterial);
+    let p=[
+      x+r*Math.cos(a),
+      base,
+      z+r*Math.sin(a)
+    ];
 
-  // จานและของตกแต่ง
-  cylinder(.25,.05,x,.85,z,white);
-  sphere(.1,x,.94,z,gold);
+    let q=[
+      x+r*Math.cos(b),
+      base,
+      z+r*Math.sin(b)
+    ];
+
+    let u=[p[0],base+h,p[2]];
+    let v=[q[0],base+h,q[2]];
+
+    face([p,q,v,u],c[1]);
+    top.push(u);
+  }
+
+  face(top,c[0]);
+}
+
+// =======================
+// ป้ายข้อความ
+// =======================
+
+function label(text,x,y,z,color='#ffffff',size=1){
+
+  labels.push({
+    text:text,
+    p:project(x,y,z),
+    color:color,
+    size:size
+  });
+}
+
+// =======================
+// ชุดสี
+// =======================
+
+const wood=['#a87948','#674127','#805333'];
+
+const cream=['#fff5df','#c9b89c','#ded0b7'];
+
+const gold=['#c38c49','#94602d','#aa7138'];
+
+const dark=['#454545','#202020','#303030'];
+
+const sand=['#dec7a1','#b99c75','#c7ae87'];
+
+// =======================
+// สร้างโต๊ะและเก้าอี้
+// =======================
+
+function table(x,z,n){
+
+  const color=n<=5?gold:cream;
+
+  cylinder(x,z,.12,.7,0,wood);
+
+  cylinder(x,z,.75,.55,.12,color);
+
+  cylinder(x,z,.8,.12,.67,color);
+
+  cylinder(x,z,.22,.06,.79,cream);
+
+  cylinder(x,z,.07,.16,.85,gold);
 
   // เก้าอี้ 10 ตัว
-  for(let i=0;i<10;i++){
 
-    const angle=i*Math.PI*2/10;
-    const cx=x+1.12*Math.cos(angle);
-    const cz=z+1.12*Math.sin(angle);
+  for(let k=0;k<10;k++){
 
-    const seat=box(
-      .38,.12,.38,cx,.43,cz,cream
-    );
+    let a=k*Math.PI/5;
 
-    seat.rotation.y=-angle+Math.PI/2;
+    let xx=x+1.12*Math.cos(a);
+    let zz=z+1.12*Math.sin(a);
 
-    const back=box(
-      .38,.45,.09,
-      cx+.16*Math.cos(angle),
-      .67,
-      cz+.16*Math.sin(angle),
-      cream
-    );
+    box(xx,zz,.38,.38,.45,cream);
 
-    back.rotation.y=-angle+Math.PI/2;
-
-    for(let dx of [-.13,.13]){
-      for(let dz of [-.13,.13]){
-        box(.05,.4,.05,
-            cx+dx,.2,cz+dz,darkWood);
-      }
-    }
-  }
-
-  sign(String(number),x,1.15,z,.85);
-}
-
-// จัดโต๊ะ 4 แถว แถวละ 5 โต๊ะ
-// ฝั่งซ้าย 2 โต๊ะ ฝั่งขวา 3 โต๊ะ
-
-const columns = [-7.8,-4.4,.8,4.3,7.8];
-
-let number=1;
-
-for(let row=0;row<4;row++){
-  for(let col=0;col<5;col++){
-    createTable(
-      columns[col],
-      -4.2+row*3.1,
-      number++
+    box(
+      xx+.15*Math.cos(a),
+      zz+.15*Math.sin(a),
+      .25,.25,.4,cream,.45
     );
   }
+
+  label(
+    String(n),
+    x,1.05,z,
+    n<=5?'#ffffff':'#50321d',
+    1
+  );
 }
 
-// =============================
+// =======================
 // เต็นท์บริการ
-// =============================
+// =======================
 
 function tent(x,z,w,d,text){
 
-  box(w,.12,d,x,.06,z,sand);
+  box(x,z,w,d,.12,sand);
 
   for(let a of [-1,1]){
     for(let b of [-1,1]){
-      box(.13,2.3,.13,
+
+      box(
         x+a*(w/2-.1),
-        1.15,
         z+b*(d/2-.1),
-        wood
+        .13,.13,2.3,wood
       );
     }
   }
 
-  box(w,.15,d,x,2.3,z,cream);
+  let A=[x-w/2,2.3,z-d/2];
+  let B=[x+w/2,2.3,z-d/2];
+  let C=[x+w/2,2.3,z+d/2];
+  let D=[x-w/2,2.3,z+d/2];
+  let T=[x,3.2,z];
 
-  const roof=new THREE.Mesh(
-    new THREE.ConeGeometry(1,1,4),
-    cream
+  face([A,B,T],'#fff5df');
+  face([B,C,T],'#d4c4a8');
+  face([C,D,T],'#e8d8bd');
+  face([D,A,T],'#c9b697');
+
+  box(x,z,w*.8,.7,.9,wood);
+
+  box(x,z,w*.85,.8,.12,cream,.9);
+
+  label(text,x,3.5,z,'#ffffff',1);
+}
+
+// =======================
+// สร้างต้นไม้
+// =======================
+
+function tree(x,z){
+
+  cylinder(x,z,.2,2.3,0,wood);
+
+  cylinder(
+    x,z,1.05,1.2,2,
+    ['#4b783c','#31532b']
   );
 
-  roof.rotation.y=Math.PI/4;
-  roof.scale.set(w/Math.sqrt(2),1,
-                 d/Math.sqrt(2));
-
-  roof.position.set(x,2.85,z);
-  roof.castShadow=true;
-  scene.add(roof);
-
-  box(w*.8,.9,.65,x,.55,z,wood);
-  box(w*.85,.1,.8,x,1.05,z,cream);
-
-  sign(text,x,3.5,z,w);
+  cylinder(
+    x,z,.75,.9,3.1,
+    ['#5b8947','#3b6634']
+  );
 }
 
-tent(-7.9,-10.3,3.3,3,'เครื่องเสียงและไฟ');
-tent(7.9,-10.3,3.3,3,'ของรางวัล');
+// =======================
+// ไฟประดับ
+// =======================
 
-tent(0,9,4.5,2.8,'จุดลงทะเบียน');
-tent(6.5,9,5,2.8,'จุดบริการเครื่องดื่ม');
+function light(x,z){
 
-// =============================
-// จุดถ่ายรูป Cowboy
-// =============================
+  box(x,z,.12,.12,1.2,wood);
 
-box(5,.15,2.8,-6.5,.075,9,sand);
-box(5,2.7,.2,-6.5,1.35,8,wood);
-
-sign('Cowboy Backdrop',
-     -6.5,3.2,8.5,5);
-
-sign('จุดถ่ายรูป',-6.5,2.1,8.3,3);
-
-// ฟางตกแต่ง
-for(let x of [-8.4,-4.6]){
-  box(.9,.65,.7,x,.325,9.8,gold);
+  cylinder(
+    x,z,.14,.25,1.2,
+    ['#fff5a5','#e8aa42']
+  );
 }
 
-// ถังไม้
-cylinder(.4,.85,-8.6,.425,8.6,wood);
-cylinder(.4,.85,-4.4,.425,8.6,wood);
+// =======================
+// สร้างแผนผังทั้งหมด
+// =======================
 
-// =============================
-// ซุ้มทางเข้า
-// =============================
+function build(){
 
-box(.3,3,.3,-2,1.5,12,wood);
-box(.3,3,.3,2,1.5,12,wood);
-box(4.5,.4,.4,0,3,12,wood);
+  faces=[];
+  labels=[];
 
-sign('ทางเข้างาน',0,3.6,12,4);
+  // พื้นสนาม
 
-// =============================
-// รั้วไม้รอบงาน
-// =============================
+  let grass=night
+    ? ['#30492d','#22351f','#294027']
+    : ['#789453','#526d38','#607c42'];
 
-for(let z=-12;z<=12;z+=2){
+  box(0,0,20,25,.25,grass,-.25);
 
-  for(let x of [-9.8,9.8]){
+  // ทางเดินหลัก
 
-    box(.15,1.2,.15,x,.6,z,wood);
+  box(-1.7,1,2.2,16,.03,sand);
 
-    if(z<12){
-      box(.09,.12,2,x,.45,z+1,wood);
-      box(.09,.12,2,x,.9,z+1,wood);
+  // พื้นที่หน้าเวที
+
+  box(0,-7.2,18,2.5,.04,sand);
+
+  label(
+    'พื้นที่กิจกรรมหน้าเวที',
+    0,.2,-7.2,'#51351e',1.1
+  );
+
+  // เวทีหลัก
+
+  box(0,-10.3,11,3.6,.6,wood);
+
+  box(0,-11.9,11,.25,3.2,wood,.6);
+
+  box(-5.3,-10.3,.2,.2,4,wood);
+  box(5.3,-10.3,.2,.2,4,wood);
+
+  box(0,-10.3,11,3.8,.2,wood,4);
+
+  // ลำโพง
+
+  box(-4.7,-9.4,.8,.7,1.7,dark,.6);
+  box(4.7,-9.4,.8,.7,1.7,dark,.6);
+
+  // กลอง
+
+  cylinder(0,-10.5,.45,.7,.6,dark);
+  cylinder(-.7,-10.7,.25,.5,.6,gold);
+  cylinder(.7,-10.7,.25,.5,.6,gold);
+
+  label('เวทีหลัก',0,4.5,-10.3,'#ffffff',1.5);
+
+  label(
+    'ดนตรีสด / พิธีกร / จับรางวัล',
+    0,2.8,-10.3,'#ffffff',.9
+  );
+
+  // เครื่องเสียงและของรางวัล
+
+  tent(-7.9,-10.3,3.2,3,'เครื่องเสียงและไฟ');
+
+  tent(7.9,-10.3,3.2,3,'ของรางวัล');
+
+  // โต๊ะจีน 20 โต๊ะ
+
+  const xs=[-7.8,-4.4,.8,4.3,7.8];
+
+  let number=1;
+
+  for(let row=0;row<4;row++){
+    for(let col=0;col<5;col++){
+
+      table(
+        xs[col],
+        -4.2+row*3.1,
+        number++
+      );
     }
+  }
+
+  // จุดลงทะเบียน
+
+  tent(0,9,4.5,2.8,'จุดลงทะเบียน');
+
+  // เครื่องดื่ม
+
+  tent(6.5,9,5,2.8,'จุดบริการเครื่องดื่ม');
+
+  // มุมถ่ายรูป
+
+  box(-6.5,9,5,2.8,.15,sand);
+
+  box(-6.5,8,5,.2,2.8,wood);
+
+  label('จุดถ่ายรูป',-6.5,3.2,8.5);
+
+  label('COWBOY',-6.5,2,8.3,'#ffffff',1.3);
+
+  // กองฟาง
+
+  box(-8.4,9.8,.9,.7,.65,gold);
+  box(-4.6,9.8,.9,.7,.65,gold);
+
+  // ถังไม้
+
+  cylinder(-8.5,8.7,.4,.85,0,wood);
+  cylinder(-4.5,8.7,.4,.85,0,wood);
+
+  // ซุ้มทางเข้า
+
+  box(-2,11.8,.3,.3,3,wood);
+  box(2,11.8,.3,.3,3,wood);
+
+  box(0,11.8,4.5,.4,.45,wood,3);
+
+  label('ทางเข้างาน',0,3.8,11.8);
+
+  // รั้วไม้และไฟ
+
+  for(let z=-12;z<=12;z+=2){
+
+    for(let x of [-9.8,9.8]){
+
+      light(x,z);
+
+      if(z<12){
+
+        box(x,z+1,.1,2,.12,wood,.4);
+
+        box(x,z+1,.1,2,.12,wood,.85);
+      }
+    }
+  }
+
+  // ต้นไม้รอบงาน
+
+  for(let z of [-10,-3,4,11]){
+    tree(-11.5,z);
+    tree(11.5,z);
   }
 }
 
-// =============================
-// ไฟประดับเหนือพื้นที่จัดงาน
-// =============================
+// =======================
+// แสดงผลภาพ
+// =======================
 
-function lightString(x1,z1,x2,z2){
+function draw(){
 
-  const points=[];
+  W=canvas.clientWidth;
+  H=canvas.clientHeight;
 
-  for(let i=0;i<=40;i++){
-
-    const t=i/40;
-    const x=x1+(x2-x1)*t;
-    const z=z1+(z2-z1)*t;
-    const y=4.5-.65*Math.sin(Math.PI*t);
-
-    points.push(new THREE.Vector3(x,y,z));
-
-    if(i%2===0){
-      sphere(.075,x,y-.08,z,bulbMaterial);
-    }
-  }
-
-  const line=new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints(points),
-    new THREE.LineBasicMaterial({
-      color:0x493722
-    })
+  let dpi=Math.min(
+    window.devicePixelRatio||1,2
   );
 
-  scene.add(line);
+  canvas.width=W*dpi;
+  canvas.height=H*dpi;
+
+  ctx.setTransform(dpi,0,0,dpi,0,0);
+
+  S=Math.min(W/31,H/34)*magnify;
+
+  ctx.fillStyle=night?'#101d1b':'#e6e5dc';
+
+  ctx.fillRect(0,0,W,H);
+
+  build();
+
+  // เรียงวัตถุตามระยะ
+
+  faces.sort((a,b)=>a.depth-b.depth);
+
+  for(let f of faces){
+
+    ctx.beginPath();
+
+    f.points.forEach((p,i)=>{
+
+      if(i===0){
+        ctx.moveTo(p[0],p[1]);
+      }else{
+        ctx.lineTo(p[0],p[1]);
+      }
+    });
+
+    ctx.closePath();
+
+    ctx.fillStyle=f.color;
+    ctx.fill();
+  }
+
+  // แสดงหมายเลขโต๊ะและป้าย
+
+  for(let l of labels){
+
+    let size=Math.max(
+      9,
+      Math.min(22,S*.8*l.size)
+    );
+
+    ctx.font='bold '+size+'px Arial';
+
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+
+    ctx.lineJoin='round';
+
+    ctx.strokeStyle=
+      l.color==='#ffffff'
+      ? '#51351e'
+      : '#fff5df';
+
+    ctx.lineWidth=3;
+
+    ctx.strokeText(
+      l.text,l.p[0],l.p[1]
+    );
+
+    ctx.fillStyle=l.color;
+
+    ctx.fillText(
+      l.text,l.p[0],l.p[1]
+    );
+  }
 }
 
-for(let z of [-5,1,7]){
+// =======================
+// ปุ่มควบคุม
+// =======================
 
-  box(.15,4.5,.15,-9.5,2.25,z,wood);
-  box(.15,4.5,.15,9.5,2.25,z,wood);
+function view(a,b){
 
-  lightString(-9.5,z,9.5,z);
+  auto=false;
+  yaw=a;
+  pitch=b;
+  draw();
 }
 
-// =============================
-// ต้นไม้รอบพื้นที่
-// =============================
+function zoom(v){
 
-const leaf=mat(0x294e28);
+  magnify=Math.max(
+    .45,
+    Math.min(3,magnify*v)
+  );
 
-for(let z of [-10,-3,4,11])
+  draw();
+}
+
+function reset(){
+
+  yaw=-.4;
+  pitch=.85;
+  magnify=1;
+  auto=false;
+  draw();
+}
+
+function full(){
+
+  if(document.fullscreenElement){
+
+    document.exitFullscreen();
+
+  }else if(document.documentElement.requestFullscreen){
+
+    document.documentElement
+      .requestFullscreen()
+      .catch(()=>alert('ไม่สามารถเปิดเต็มหน้าจอได้'));
+  }
+}
+
+// =======================
+// เมาส์และหน้าจอสัมผัส
+// =======================
+
+let pointers=new Map();
+let distance=0;
+
+canvas.addEventListener('pointerdown',e=>{
+
+  auto=false;
+
+  canvas.setPointerCapture(e.pointerId);
+
+  pointers.set(
+    e.pointerId,
+    [e.clientX,e.clientY]
+  );
+
+  if(pointers.size===2){
+
+    let p=[...pointers.values()];
+
+    distance=Math.hypot(
+      p[0][0]-p
